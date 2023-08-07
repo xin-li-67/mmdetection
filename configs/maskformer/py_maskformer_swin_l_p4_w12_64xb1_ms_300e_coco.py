@@ -1,13 +1,10 @@
 from mmengine.config import read_base
 
 with read_base():
-    from .._base_.default_runtime import *
-    from .._base_.datasets.coco_panoptic import *
-    from .py_maskformer_r50_ms_16xb1_75e_coco import *
+    from .py_maskformer_r50_ms_16xb1_75e_coco import *  # noqa
 
 from mmengine.model import PretrainedInit
 from mmengine.optim import LinearLR, MultiStepLR, OptimWrapper
-from mmengine.runner import EpochBasedTrainLoop
 from torch.nn import GroupNorm, ReLU
 from torch.optim import AdamW
 
@@ -83,8 +80,7 @@ param_scheduler = [
         gamma=0.1)
 ]
 
-train_cfg = dict(
-    type=EpochBasedTrainLoop, max_epochs=max_epochs, val_interval=1)
+train_cfg = dict(max_epochs=max_epochs)
 
 # NOTE: `auto_scale_lr` is for automatically scaling LR,
 # USER SHOULD NOT CHANGE ITS VALUES.

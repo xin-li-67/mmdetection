@@ -1,15 +1,18 @@
 from mmengine.config import read_base
 
 with read_base():
-    from .._base_.default_runtime import *
-    from .._base_.datasets.coco_panoptic import *
+    from .._base_.default_runtime import *  # noqa
+    from .._base_.datasets.coco_panoptic import *  # noqa
 
+from mmcv.transforms import LoadImageFromFile, RandomChoice, RandomChoiceResize
 from mmengine.model import PretrainedInit
 from mmengine.optim import MultiStepLR, OptimWrapper
-from mmengine.runner import EpochBasedTrainLoop
+from mmengine.runner import EpochBasedTrainLoop, TestLoop, ValLoop
 from torch.nn import BatchNorm2d, GroupNorm, ReLU
 from torch.optim import AdamW
 
+from mmdet.datasets.transforms import (LoadPanopticAnnotations, PackDetInputs,
+                                       RandomCrop, RandomFlip)
 from mmdet.models import DetDataPreprocessor, MaskFormer, ResNet
 from mmdet.models.dense_heads import MaskFormerHead
 from mmdet.models.layers import TransformerEncoderPixelDecoder
@@ -145,7 +148,44 @@ model = dict(
         filter_low_score=False),
     init_cfg=None)
 
-train_pipeline = []
+train_pipeline = [
+    dict(type=LoadImageFromFile),
+    dict(
+        type=LoadPanopticAnnotations,
+        with_bbox=True,
+        with_mask=True,
+        with_seg=True),
+    dict(type=RandomFlip, prob=0.5),
+    dict(
+        type=RandomChoice,
+        transforms=[[
+            dict(
+                type=RandomChoiceResize,
+                scales=[(480, 1333), (512, 1333), (544, 1333), (576, 1333),
+                        (608, 1333), (640, 1333), (672, 1333), (704, 1333),
+                        (736, 1333), (768, 1333), (800, 1333)],
+                keep_ratio=True)
+        ],
+                    [
+                        dict(
+                            type=RandomChoiceResize,
+                            scales=[(400, 1333), (500, 1333), (600, 1333)],
+                            keep_ratio=True),
+                        dict(
+                            type=RandomCrop,
+                            crop_type='absolute_range',
+                            crop_size=(384, 600),
+                            allow_negative_crop=True),
+                        dict(
+                            type=RandomChoiceResize,
+                            scales=[(480, 1333), (512, 1333), (544, 1333),
+                                    (576, 1333), (608, 1333), (640, 1333),
+                                    (672, 1333), (704, 1333), (736, 1333),
+                                    (768, 1333), (800, 1333)],
+                            keep_ratio=True)
+                    ]]),
+    dict(type=PackDetInputs)
+]
 
 train_dataloader = dict(
     batch_size=1, num_workers=1, dataset=dict(pipeline=train_pipeline))
@@ -162,7 +202,12 @@ optim_wrapper = dict(
         weight_decay=0.0001,
         eps=1e-8,
         betas=(0.9, 0.999)),
-    paramwise_cfg=dict(norm_decay_mult=0.0),
+    paramwise_cfg=dict(
+        custom_keys={
+            'backbone': dict(lr_mult=0.1, decay_mult=1.0),
+            'query_embed': dict(lr_mult=1.0, decay_mult=0.0)
+        },
+        norm_decay_mult=0.0),
     clip_grad=dict(max_norm=0.01, norm_type=2))
 
 max_epochs = 75
@@ -177,6 +222,8 @@ param_scheduler = dict(
 
 train_cfg = dict(
     type=EpochBasedTrainLoop, max_epochs=max_epochs, val_interval=1)
+val_cfg = dict(type=ValLoop),
+test_cfg = dict(type=TestLoop)
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically
