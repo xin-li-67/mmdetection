@@ -1,8 +1,8 @@
-from mmengine.config import read_base
+from mmengine import read_base
 
 with read_base():
-    from .._base_.default_runtime import *  # noqa
-    from .._base_.datasets.coco_panoptic import *  # noqa
+    from ._base_.coco_panoptic import *  # noqa
+    from ._base_.default_runtime import *  # noqa
 
 from mmcv.transforms import LoadImageFromFile, RandomChoice, RandomChoiceResize
 from mmengine.model import PretrainedInit
@@ -13,8 +13,10 @@ from torch.optim import AdamW
 
 from mmdet.datasets.transforms import (LoadPanopticAnnotations, PackDetInputs,
                                        RandomCrop, RandomFlip)
-from mmdet.models import DetDataPreprocessor, MaskFormer, ResNet
+from mmdet.models.backbones import ResNet
+from mmdet.models.data_preprocessors import DetDataPreprocessor
 from mmdet.models.dense_heads import MaskFormerHead
+from mmdet.models.detectors import MaskFormer
 from mmdet.models.layers import TransformerEncoderPixelDecoder
 from mmdet.models.losses import CrossEntropyLoss, DiceLoss, FocalLoss
 from mmdet.models.seg_heads import MaskFormerFusionHead
@@ -148,8 +150,9 @@ model = dict(
         filter_low_score=False),
     init_cfg=None)
 
+backend_args = None
 train_pipeline = [
-    dict(type=LoadImageFromFile),
+    dict(type=LoadImageFromFile, backend_args=backend_args),
     dict(
         type=LoadPanopticAnnotations,
         with_bbox=True,
@@ -187,12 +190,12 @@ train_pipeline = [
     dict(type=PackDetInputs)
 ]
 
-train_dataloader = dict(
-    batch_size=1, num_workers=1, dataset=dict(pipeline=train_pipeline))
+train_dataloader['batch_size'] = 1
+train_dataloader['num_workers'] = 1
+train_dataloader['dataset']['pipeline'] = train_pipeline
 
-val_dataloader = dict(batch_size=1, num_workers=1)
-
-test_dataloader = val_dataloader
+val_dataloader['batch_size'] = 1
+val_dataloader['num_workers'] = 1
 
 optim_wrapper = dict(
     type=OptimWrapper,
